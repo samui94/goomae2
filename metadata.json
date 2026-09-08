@@ -1,0 +1,7 @@
+{
+  "name": "구매 견적 비교·납기 판정기",
+  "description": "구매요청(PR)별 복수 공급사 견적 데이터 반입, 최저가 후보 선정, 단가 이상치 판정, 납기 3구간 판정 및 표기 상이 검출 자동화 도구",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
