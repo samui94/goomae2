@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { supabase, isSupabaseConfigured } from '../lib/supabase';
-import { Lock, Mail, KeyRound, AlertCircle, CheckCircle2, Database, Code } from 'lucide-react';
+import { getSupabaseClient, isSupabaseConfigured, saveSupabaseConfig, getStoredUrl, getStoredKey } from '../lib/supabase';
+import { Lock, Mail, KeyRound, AlertCircle, CheckCircle2, Database, Code, Settings, Globe, Shield } from 'lucide-react';
 
 interface AuthScreenProps {
   onBypassDemo: () => void;
@@ -15,10 +15,26 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onBypassDemo, onOpenSqlM
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
+  // Supabase dynamic config state
+  const [showConfig, setShowConfig] = useState(!isSupabaseConfigured());
+  const [inputUrl, setInputUrl] = useState(getStoredUrl());
+  const [inputKey, setInputKey] = useState(getStoredKey());
+
+  const handleSaveConfig = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inputUrl || !inputKey) {
+      setErrorMsg('Supabase URL과 Anon Key를 모두 입력해주세요.');
+      return;
+    }
+    saveSupabaseConfig(inputUrl, inputKey);
+  };
+
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!supabase) {
-      setErrorMsg('Supabase 환경 변수(VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY)가 설정되지 않았습니다.');
+    const client = getSupabaseClient();
+    if (!client) {
+      setErrorMsg('Supabase 설정이 완료되지 않았습니다. 아래 [Supabase 설정]에서 URL과 Key를 입력해주세요.');
+      setShowConfig(true);
       return;
     }
 
@@ -28,14 +44,14 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onBypassDemo, onOpenSqlM
 
     try {
       if (isSignUp) {
-        const { error } = await supabase.auth.signUp({
+        const { error } = await client.auth.signUp({
           email,
           password,
         });
         if (error) throw error;
         setSuccessMsg('회원가입 요청이 완료되었습니다. 이메일 인증을 확인하시거나 로그인해주세요.');
       } else {
-        const { error } = await supabase.auth.signInWithPassword({
+        const { error } = await client.auth.signInWithPassword({
           email,
           password,
         });
@@ -61,15 +77,69 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onBypassDemo, onOpenSqlM
           <p className="text-xs text-slate-400 mt-1">Supabase 인가 사용자 로그인</p>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleAuth} className="p-8 space-y-4">
-          {!isSupabaseConfigured && (
-            <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl text-xs space-y-1">
-              <p className="font-semibold">⚠️ Supabase 미설정 상태</p>
-              <p>환경변수 <code>VITE_SUPABASE_URL</code>과 <code>VITE_SUPABASE_ANON_KEY</code>가 비어있습니다. 데모 모드로 체험하시거나 설정을 완료해주세요.</p>
+        {/* Config Toggle or Form */}
+        <div className="p-6 bg-slate-50 border-b border-slate-200">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+              <Settings className="w-3.5 h-3.5 text-blue-600" />
+              Supabase 연동 설정
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowConfig(!showConfig)}
+              className="text-xs text-blue-600 hover:underline font-medium"
+            >
+              {showConfig ? '설정 닫기' : isSupabaseConfigured() ? '설정 수정' : '설정 입력하기'}
+            </button>
+          </div>
+
+          {showConfig ? (
+            <form onSubmit={handleSaveConfig} className="space-y-3 pt-1">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">Supabase URL</label>
+                <div className="relative">
+                  <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                  <input
+                    type="url"
+                    required
+                    value={inputUrl}
+                    onChange={e => setInputUrl(e.target.value)}
+                    placeholder="https://xyzproject.supabase.co"
+                    className="w-full pl-9 pr-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">Supabase Anon Key</label>
+                <div className="relative">
+                  <Shield className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                  <input
+                    type="password"
+                    required
+                    value={inputKey}
+                    onChange={e => setInputKey(e.target.value)}
+                    placeholder="eyJhbGciOi..."
+                    className="w-full pl-9 pr-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                  />
+                </div>
+              </div>
+              <button
+                type="submit"
+                className="w-full py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-medium transition-colors shadow-2xs"
+              >
+                Supabase 설정 저장 및 적용
+              </button>
+            </form>
+          ) : (
+            <div className="text-xs text-slate-600 flex items-center justify-between">
+              <span>연결 상태: {isSupabaseConfigured() ? <strong className="text-emerald-600">설정 완료됨</strong> : <strong className="text-amber-600">미설정</strong>}</span>
+              <span className="font-mono text-[10px] text-slate-400 truncate max-w-[200px]">{getStoredUrl() || 'URL 없음'}</span>
             </div>
           )}
+        </div>
 
+        {/* Login Form */}
+        <form onSubmit={handleAuth} className="p-6 space-y-4">
           {errorMsg && (
             <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs flex items-center gap-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
@@ -116,13 +186,13 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onBypassDemo, onOpenSqlM
 
           <button
             type="submit"
-            disabled={loading || !isSupabaseConfigured}
+            disabled={loading || !isSupabaseConfigured()}
             className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white font-semibold rounded-xl text-sm transition-colors shadow-md shadow-blue-600/20"
           >
             {loading ? '처리 중...' : isSignUp ? '회원가입 (Sign Up)' : '로그인 (Sign In)'}
           </button>
 
-          <div className="text-center pt-2">
+          <div className="text-center pt-1">
             <button
               type="button"
               onClick={() => setIsSignUp(!isSignUp)}
@@ -132,7 +202,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onBypassDemo, onOpenSqlM
             </button>
           </div>
 
-          <div className="border-t border-slate-100 pt-4 space-y-2">
+          <div className="border-t border-slate-100 pt-3 space-y-2">
             <button
               type="button"
               onClick={onOpenSqlModal}
